@@ -1,0 +1,297 @@
+/* ============================================
+   Basic setup
+   ============================================ */
+
+/* "box-sizing: border-box" makes width/height calculations include
+   padding and border, which is much less confusing for beginners
+   (and everyone else). We apply it to every element with the * selector. */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  /* Keeping colors as named variables means we only change them here
+     if we ever want to re-theme the app. */
+  --color-bg: #f4f6f5;
+  --color-card: #ffffff;
+  --color-text: #1f2a24;
+  --color-muted: #5b6b63;
+  --color-primary: #1f7a4d;
+  --color-primary-dark: #175d3a;
+  --color-border: #dfe6e2;
+  --color-error-bg: #fdeceb;
+  --color-error-text: #8a2b22;
+  --color-open: #1f7a4d;
+  --color-closed: #a03a2e;
+  --radius: 14px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  /* A plain, widely-available font stack — no external font download needed. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+/* Mobile-first: the app is designed to fill a phone screen, then we
+   just cap its width on bigger screens so it doesn't stretch too wide. */
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 48px;
+}
+
+/* ============================================
+   Header
+   ============================================ */
+
+.app-header {
+  text-align: center;
+  padding: 12px 0 20px;
+}
+
+.app-header h1 {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+/* ============================================
+   Cards (the boxed sections)
+   ============================================ */
+
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============================================
+   Inputs and buttons — sized for thumbs, not mouse pointers.
+   Guidance for touch targets is roughly 44-48px minimum height.
+   ============================================ */
+
+label {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"] {
+  flex: 1;
+  min-width: 0; /* lets the input shrink instead of overflowing the row */
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fafcfb;
+  color: var(--color-text);
+}
+
+input[type="text"]:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+button {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 18px;
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:active {
+  background: var(--color-primary-dark);
+}
+
+button:disabled {
+  background: #a9b8b0;
+  cursor: not-allowed;
+}
+
+.link-button {
+  background: none;
+  color: var(--color-primary);
+  font-weight: 500;
+  padding: 8px 0;
+  min-height: auto;
+  text-decoration: underline;
+}
+
+.link-button:active {
+  background: none;
+  color: var(--color-primary-dark);
+}
+
+/* ============================================
+   Status text / errors / notes
+   ============================================ */
+
+#locationStatus {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.error-text {
+  color: var(--color-error-text);
+  font-size: 0.9rem;
+  margin: 8px 0 0;
+}
+
+.error-box {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.error-box p {
+  margin: 0 0 10px;
+}
+
+.error-box button {
+  background: var(--color-error-text);
+}
+
+#loadingMessage {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 20px 0;
+}
+
+.note-text {
+  background: #fff7e6;
+  color: #7a5b12;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  margin: 0 0 14px;
+}
+
+/* ============================================
+   Results list
+   ============================================ */
+
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.store-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.store-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.store-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.store-distance {
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+.store-type {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: 2px 0 8px;
+}
+
+.store-address {
+  font-size: 0.9rem;
+  margin: 0 0 6px;
+}
+
+.store-hours {
+  font-size: 0.88rem;
+  margin: 0 0 10px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.badge-open {
+  background: #e4f3ea;
+  color: var(--color-open);
+}
+
+.badge-closed {
+  background: #f7e6e4;
+  color: var(--color-closed);
+}
+
+.directions-btn {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* ============================================
+   Slightly bigger screens (tablets, small laptops):
+   the phone-shaped layout still looks fine, just centered
+   with some breathing room — no separate "desktop design" needed.
+   ============================================ */
+@media (min-width: 600px) {
+  body {
+    background: #e9edeb;
+  }
+  #app {
+    margin-top: 24px;
+    box-shadow: 0 2px 24px rgba(0, 0, 0, 0.06);
+    background: var(--color-bg);
+    border-radius: 20px;
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- This "viewport" line tells phones to show the page at phone width,
+       instead of zoomed out like a tiny desktop page. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Winkel Hier — Find nearby stores</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Everything visible on the page lives inside this main wrapper. -->
+  <main id="app">
+
+    <header class="app-header">
+      <h1>🛍️ Winkel Hier</h1>
+      <p class="subtitle">Find a nearby store for anything you need</p>
+    </header>
+
+    <!-- STEP 1: LOCATION. Shows either "using your location" text,
+         or (if that failed) a small form to type a town/address. -->
+    <section id="locationSection" class="card">
+      <p id="locationStatus">📍 Finding your location…</p>
+
+      <form id="manualLocationForm" class="manual-location hidden">
+        <label for="manualLocationInput">Type your town or address instead:</label>
+        <div class="input-row">
+          <input
+            type="text"
+            id="manualLocationInput"
+            placeholder="e.g. Utrecht, or Damrak 1 Amsterdam"
+            autocomplete="off"
+          />
+          <button type="submit" id="manualLocationSubmit">Use this</button>
+        </div>
+        <p id="manualLocationError" class="error-text hidden"></p>
+      </form>
+
+      <button id="changeLocationLink" class="link-button hidden">Not your location? Change it</button>
+    </section>
+
+    <!-- STEP 2: SEARCH. Hidden until we actually know where the user is. -->
+    <section id="searchSection" class="card hidden">
+      <label for="itemInput">What are you looking to buy?</label>
+      <div class="input-row">
+        <input
+          type="text"
+          id="itemInput"
+          placeholder="e.g. screwdriver, melk, birthday card"
+          autocomplete="off"
+        />
+        <button id="searchBtn">Find stores</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: RESULTS / LOADING / ERRORS -->
+    <section id="statusSection">
+      <p id="loadingMessage" class="hidden">🔎 Searching nearby stores…</p>
+      <div id="errorBox" class="error-box hidden">
+        <p id="errorText"></p>
+        <button id="retryBtn" class="hidden">Try again</button>
+      </div>
+      <p id="noteMessage" class="note-text hidden"></p>
+    </section>
+
+    <section id="resultsSection">
+      <ul id="resultsList" class="results-list"></ul>
+    </section>
+
+  </main>
+
+  <!-- Our own code goes last, so the HTML above already exists when it runs. -->
+  <script src="app.js"></script>
+</body>
+</html>
