@@ -815,9 +815,10 @@ function buildOverpassQuery(tagGroups, lat, lon, { requireName = false } = {}) {
   return `[out:json][timeout:20];(${clauses});out center tags;`;
 }
 
-// Sends the query to Overpass and returns the raw list of elements.
-// Throws an Error("TIMEOUT") if it takes too long.
-async function fetchOverpassResults(query) {
+// Makes a single attempt to fetch from Overpass. Throws Error("BUSY")
+// if the server turned the request away (429/504), Error("TIMEOUT") if
+// it took too long, or a generic Error for anything else.
+async function fetchOverpassOnce(query) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
 
@@ -830,7 +831,9 @@ async function fetchOverpassResults(query) {
 
     // Overpass is a shared free service, so it can turn away requests
     // when it's busy (status 429 or 504) instead of just being slow.
-    // We flag that as its own case so the user gets an accurate message.
+    // We flag that as its own case so fetchOverpassResults knows it's
+    // worth a quick retry, and the user gets an accurate message if it
+    // still fails after that.
     if (response.status === 429 || response.status === 504) {
       throw new Error("BUSY");
     }
@@ -843,6 +846,34 @@ async function fetchOverpassResults(query) {
     throw err;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A "busy" response often clears up within a couple of seconds — e.g.
+// searching for two different things back to back is enough to
+// briefly trip the free server's limits. Rather than bothering the
+// user with an error straight away, we quietly wait and try again a
+// couple of times first, and only give up (and show the "busy"
+// message) if it's still failing after that.
+const OVERPASS_MAX_ATTEMPTS = 3;
+const OVERPASS_RETRY_DELAY_MS = 2000;
+
+async function fetchOverpassResults(query) {
+  for (let attempt = 1; attempt <= OVERPASS_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fetchOverpassOnce(query);
+    } catch (err) {
+      const isLastAttempt = attempt === OVERPASS_MAX_ATTEMPTS;
+      if (err.message === "BUSY" && !isLastAttempt) {
+        await wait(OVERPASS_RETRY_DELAY_MS);
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
