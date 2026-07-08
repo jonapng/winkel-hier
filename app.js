@@ -476,10 +476,17 @@ const changeLocationLink = document.getElementById("changeLocationLink");
 const searchSection = document.getElementById("searchSection");
 
 function requestGeolocation() {
+  // Show the "type your address" option straight away, at the same time
+  // as we try GPS in the background — not only after GPS reports an
+  // error. Some phone browsers never call the error callback at all
+  // when there's no internet/GPS signal (they just hang), which used to
+  // leave people with no way to type a location in. This way, typing an
+  // address always works immediately, no matter what GPS does.
+  showManualLocationForm();
+
   if (!("geolocation" in navigator)) {
     locationStatusEl.textContent =
       "Your browser doesn't support automatic location.";
-    showManualLocationForm();
     return;
   }
 
@@ -567,8 +574,16 @@ manualLocationForm.addEventListener("submit", async (event) => {
     }
     setUserLocation(place.lat, place.lon, place.label);
   } catch (err) {
-    manualLocationError.textContent =
-      "Something went wrong looking that up. Check your internet connection and try again.";
+    // Browsers throw a TypeError specifically when fetch() can't reach
+    // the network at all (no connection, DNS failure, etc) — that's a
+    // reliable way to tell "no internet" apart from other problems.
+    if (err instanceof TypeError) {
+      manualLocationError.textContent =
+        "Can't look up this address — no internet connection. Please reconnect and try again.";
+    } else {
+      manualLocationError.textContent =
+        "Something went wrong looking that up. Please try again.";
+    }
     manualLocationError.classList.remove("hidden");
   } finally {
     submitBtn.disabled = false;
@@ -667,6 +682,13 @@ async function searchCategory(category) {
     requireName: category.requireName,
   });
   const elements = await fetchOverpassResults(query);
+
+  // Debug aid: dump every raw OpenStreetMap tag set to the browser
+  // console (F12 -> Console tab) so odd/wrong results can be diagnosed
+  // by looking at the real data, instead of guessing. Doesn't affect
+  // what's shown on the page.
+  console.log(`Overpass raw results for "${category.label}" (${elements.length}):`);
+  console.table(elements.map((el) => ({ osm_type: el.type, osm_id: el.id, ...el.tags })));
 
   const stores = elements
     .map((el) => elementToStore(el, category.label))
