@@ -98,6 +98,34 @@ label {
   gap: 8px;
 }
 
+/* The "show only stores open now" checkbox row. */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 1rem;
+  color: var(--color-text);
+}
+
+.toggle-row input[type="checkbox"] {
+  /* Bigger than the browser default so it's easy to tap on a phone. */
+  width: 22px;
+  height: 22px;
+}
+
+/* The "did you mean...?" buttons, stacked so each is a full-width,
+   easy-to-tap target rather than a cramped row. */
+.disambiguation-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disambiguation-buttons button {
+  width: 100%;
+}
+
 input[type="text"] {
   flex: 1;
   min-width: 0; /* lets the input shrink instead of overflowing the row */

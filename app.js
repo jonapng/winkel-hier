@@ -42,9 +42,22 @@ const OVERPASS_TIMEOUT_MS = 15000;
    Each entry below is one "kind of shop". It has:
      - key:      an internal id (not shown to the user)
      - label:    a friendly name shown in results
-     - tags:     the OpenStreetMap tags that identify this kind of
-                 shop on the map (see wiki.openstreetmap.org/wiki/Key:shop)
+     - tags:     which OpenStreetMap shops count as this category (see
+                 wiki.openstreetmap.org/wiki/Key:shop). This is a list
+                 of "OR" groups — a place matches if it satisfies ANY
+                 one group. Each group is itself a list of {key,value}
+                 conditions that must ALL be true together ("AND").
+                 Example: women's clothing needs shop=clothes AND
+                 clothes=women at the same time, so its one group has
+                 two conditions in it.
      - keywords: Dutch AND English words that should match this category
+
+   Categories are kept narrow on purpose: the more specific the tags,
+   the less likely a search returns something unrelated. If a category
+   turns up nothing nearby, the app automatically broadens to nearby
+   supermarkets/department stores instead (see runSearch below) — so
+   there's no need to make any single category overly broad "just in
+   case".
 
    Feel free to add more keywords later — that's the easiest way to
    teach the app new words without touching any other code.
@@ -54,22 +67,11 @@ const CATEGORIES = [
   {
     key: "groceries",
     label: "Grocery store",
-    // This used to be one big "groceries" category covering supermarket,
-    // convenience, greengrocer, bakery AND butcher tags together — which
-    // meant searching "melk" (milk) could show a bakery or butcher, since
-    // they all shared the exact same tag list. Now this category only
-    // covers places that plausibly sell general groceries/dairy/drinks;
-    // bread, meat and produce each have their OWN category below, so a
-    // specific word only pulls in the specific kind of shop it means.
-    // "shop=grocery" is also deliberately left out: it's a vague,
-    // inconsistently used OpenStreetMap tag, and we never query broad
-    // catch-all tags like "shop=yes" either — vague tags in, vague
-    // results out.
-    requireName: true, // skip entries with no name — usually unfinished/placeholder map data
-    tags: [
-      { key: "shop", value: "supermarket" },
-      { key: "shop", value: "convenience" },
-    ],
+    // "shop=grocery" is deliberately left out: it's a vague,
+    // inconsistently used OpenStreetMap tag. We also never query broad
+    // catch-all tags like "shop=yes" — vague tags in, vague results out.
+    requireName: true,
+    tags: [[{ key: "shop", value: "supermarket" }], [{ key: "shop", value: "convenience" }]],
     keywords: [
       "melk", "milk", "kaas", "cheese", "eieren", "eggs",
       "boodschappen", "groceries", "grocery", "supermarkt", "supermarket",
@@ -80,31 +82,39 @@ const CATEGORIES = [
     key: "bakery",
     label: "Bakery",
     requireName: true,
-    tags: [{ key: "shop", value: "bakery" }],
-    keywords: ["brood", "bread", "bakker", "bakery"],
+    tags: [[{ key: "shop", value: "bakery" }]],
+    keywords: ["brood", "bread", "bakker", "bakkerij", "bakery"],
   },
   {
     key: "butcher",
     label: "Butcher",
     requireName: true,
-    tags: [{ key: "shop", value: "butcher" }],
-    keywords: ["slager", "butcher", "vlees", "meat"],
+    tags: [[{ key: "shop", value: "butcher" }]],
+    keywords: ["slager", "slagerij", "butcher", "vlees", "meat"],
   },
   {
     key: "greengrocer",
     label: "Greengrocer",
     requireName: true,
-    tags: [{ key: "shop", value: "greengrocer" }],
-    keywords: ["groente", "vegetables", "fruit", "groenteboer"],
+    tags: [[{ key: "shop", value: "greengrocer" }]],
+    keywords: ["groente", "vegetables", "fruit", "groenteboer", "groentewinkel"],
+  },
+  {
+    key: "wine_liquor",
+    label: "Wine & liquor store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "alcohol" }]],
+    keywords: ["wijn", "wine", "drank", "sterke drank", "slijterij", "liquor", "alcohol", "bier", "beer"],
   },
   {
     key: "tools",
     label: "Hardware / DIY store",
+    requireName: true,
     tags: [
-      { key: "shop", value: "hardware" },
-      { key: "shop", value: "doityourself" },
-      { key: "shop", value: "trade" },
-      { key: "shop", value: "paint" },
+      [{ key: "shop", value: "hardware" }],
+      [{ key: "shop", value: "doityourself" }],
+      [{ key: "shop", value: "trade" }],
+      [{ key: "shop", value: "paint" }],
     ],
     keywords: [
       "schroevendraaier", "screwdriver", "hamer", "hammer", "gereedschap",
@@ -116,60 +126,106 @@ const CATEGORIES = [
   {
     key: "clothing",
     label: "Clothing store",
-    tags: [
-      { key: "shop", value: "clothes" },
-      { key: "shop", value: "boutique" },
-    ],
+    // A general clothing search (no gender/age implied). Women's/men's/
+    // kids' clothing are their own categories below, so those searches
+    // don't just return any random clothes shop.
+    requireName: true,
+    tags: [[{ key: "shop", value: "clothes" }]],
     keywords: [
-      "kleding", "kleren", "clothes", "clothing", "shirt", "t-shirt",
-      "broek", "pants", "trousers", "jurk", "dress", "jas", "jacket",
-      "coat", "trui", "sweater",
+      "kleding", "kleren", "clothes", "clothing", "kledingwinkel",
+      "shirt", "t-shirt", "broek", "pants", "trousers", "jurk", "dress",
+      "jas", "jacket", "coat", "trui", "sweater",
     ],
+  },
+  {
+    key: "womens_clothing",
+    label: "Women's clothing store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "clothes" }, { key: "clothes", value: "women" }]],
+    keywords: ["dameskleding", "women's clothing", "womenswear", "damesmode"],
+  },
+  {
+    key: "mens_clothing",
+    label: "Men's clothing store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "clothes" }, { key: "clothes", value: "men" }]],
+    keywords: ["herenkleding", "men's clothing", "menswear", "herenmode"],
+  },
+  {
+    key: "kids_clothing",
+    label: "Kids' clothing store",
+    requireName: true,
+    tags: [
+      [{ key: "shop", value: "clothes" }, { key: "clothes", value: "children" }],
+      [{ key: "shop", value: "baby_goods" }],
+    ],
+    keywords: ["kinderkleding", "kids clothing", "children's clothing", "babykleding", "baby clothing"],
   },
   {
     key: "shoes",
     label: "Shoe store",
-    tags: [{ key: "shop", value: "shoes" }],
+    requireName: true,
+    tags: [[{ key: "shop", value: "shoes" }]],
+    keywords: ["schoenen", "shoes", "laarzen", "boots", "sneakers", "sandalen", "sandals"],
+  },
+  {
+    key: "sports",
+    label: "Sports store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "sports" }]],
     keywords: [
-      "schoenen", "shoes", "laarzen", "boots", "sneakers", "sandalen",
-      "sandals",
+      "sport", "sports", "sportschoenen", "sports shoes", "bal", "ball",
+      "fitness", "yoga", "tennisracket", "voetbal", "football",
+      "sportkleding", "sportswear", "activewear",
     ],
   },
   {
     key: "electronics",
     label: "Electronics store",
-    tags: [
-      { key: "shop", value: "electronics" },
-      { key: "shop", value: "computer" },
-    ],
+    requireName: true,
+    tags: [[{ key: "shop", value: "electronics" }]],
     keywords: [
       "electronica", "elektronica", "electronics", "tv", "televisie",
-      "television", "laptop", "computer", "koptelefoon", "headphones",
-      "oplader", "charger", "kabel", "cable",
+      "television", "koptelefoon", "headphones", "oplader", "charger",
+      "kabel", "cable", "speaker", "luidspreker",
     ],
+  },
+  {
+    key: "computers",
+    label: "Computer store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "computer" }]],
+    keywords: ["computer", "computerwinkel", "laptop", "pc"],
   },
   {
     key: "phones",
     label: "Phone store",
-    tags: [{ key: "shop", value: "mobile_phone" }],
+    requireName: true,
+    tags: [[{ key: "shop", value: "mobile_phone" }]],
+    keywords: ["telefoon", "phone", "mobiel", "mobile", "smartphone", "gsm", "telefoonhoesje", "phone case"],
+  },
+  {
+    key: "appliances",
+    label: "Appliance store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "appliance" }]],
     keywords: [
-      "telefoon", "phone", "mobiel", "mobile", "smartphone", "gsm",
-      "telefoonhoesje", "phone case",
+      "wasmachine", "washing machine", "koelkast", "fridge", "refrigerator",
+      "huishoudelijke apparaten", "appliances", "stofzuiger", "vacuum cleaner",
     ],
   },
   {
     key: "books",
     label: "Book store",
-    tags: [{ key: "shop", value: "books" }],
-    keywords: [
-      "boek", "boeken", "book", "books", "roman", "novel", "tijdschrift",
-      "magazine",
-    ],
+    requireName: true,
+    tags: [[{ key: "shop", value: "books" }]],
+    keywords: ["boek", "boeken", "book", "books", "roman", "novel", "tijdschrift", "magazine"],
   },
   {
     key: "stationery",
     label: "Stationery store",
-    tags: [{ key: "shop", value: "stationery" }],
+    requireName: true,
+    tags: [[{ key: "shop", value: "stationery" }]],
     keywords: [
       "pen", "pennen", "potlood", "pencil", "papier", "paper", "schrift",
       "notebook", "wenskaart", "greeting card", "verjaardagskaart",
@@ -180,97 +236,132 @@ const CATEGORIES = [
   {
     key: "toys",
     label: "Toy store",
-    tags: [{ key: "shop", value: "toys" }],
-    keywords: [
-      "speelgoed", "toys", "toy", "pop", "doll", "lego", "spel", "game",
-      "bordspel", "board game",
-    ],
+    requireName: true,
+    tags: [[{ key: "shop", value: "toys" }]],
+    keywords: ["speelgoed", "toys", "toy", "pop", "doll", "lego", "spel", "game", "bordspel", "board game"],
   },
   {
     key: "flowers",
     label: "Florist",
-    tags: [{ key: "shop", value: "florist" }],
-    keywords: [
-      "bloemen", "flowers", "bloem", "flower", "boeket", "bouquet",
-      "plant", "planten", "plants",
-    ],
+    requireName: true,
+    tags: [[{ key: "shop", value: "florist" }]],
+    // Note: "plant"/"planten"/"plants" also appear under "garden" below
+    // on purpose — a houseplant/bouquet (florist) and an outdoor garden
+    // plant (garden centre) are genuinely different shops, so this word
+    // is a deliberately ambiguous case the app will ask you to clarify.
+    keywords: ["bloemen", "flowers", "bloem", "flower", "boeket", "bouquet", "plant", "planten", "plants"],
+  },
+  {
+    key: "garden",
+    label: "Garden centre",
+    requireName: true,
+    tags: [[{ key: "shop", value: "garden_centre" }]],
+    keywords: ["tuin", "garden", "tuincentrum", "garden centre", "plant", "planten", "plants"],
   },
   {
     key: "pharmacy",
     label: "Pharmacy / drugstore",
+    requireName: true,
     tags: [
-      { key: "amenity", value: "pharmacy" },
-      { key: "shop", value: "chemist" },
-      { key: "shop", value: "cosmetics" },
+      [{ key: "amenity", value: "pharmacy" }],
+      [{ key: "shop", value: "chemist" }],
+      [{ key: "shop", value: "cosmetics" }],
     ],
     keywords: [
       "apotheek", "pharmacy", "drogist", "drogisterij", "drugstore",
       "medicijnen", "medicine", "pijnstiller", "painkiller", "paracetamol",
-      "shampoo", "zeep", "soap", "tandpasta", "toothpaste", "luiers",
-      "diapers",
+      "shampoo", "zeep", "soap", "tandpasta", "toothpaste", "luiers", "diapers",
     ],
   },
   {
     key: "pets",
     label: "Pet store",
-    tags: [{ key: "shop", value: "pet" }],
+    requireName: true,
+    tags: [[{ key: "shop", value: "pet" }]],
     keywords: [
       "dierenwinkel", "pet store", "hondenvoer", "dog food", "kattenvoer",
       "cat food", "dieren", "pets", "hond", "dog", "kat", "cat",
     ],
   },
   {
-    key: "sports",
-    label: "Sports store",
-    tags: [{ key: "shop", value: "sports" }],
+    key: "kitchenware",
+    label: "Kitchenware store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "houseware" }]],
     keywords: [
-      "sport", "sports", "sportschoenen", "sports shoes", "bal", "ball",
-      "fitness", "yoga", "tennisracket", "voetbal", "football",
+      "keukenspullen", "kitchenware", "pannen", "pans", "bestek", "cutlery",
+      "servies", "dishes", "huishoudartikelen", "household items",
     ],
   },
   {
-    key: "home",
-    label: "Home goods / kitchen store",
-    tags: [
-      { key: "shop", value: "houseware" },
-      { key: "shop", value: "department_store" },
-      { key: "shop", value: "interior_decoration" },
-      { key: "shop", value: "kitchen" },
-    ],
-    keywords: [
-      "huishoudartikelen", "home goods", "keukenspullen", "kitchenware",
-      "pan", "pot", "bestek", "cutlery", "servies", "dishes",
-      "woonaccessoires", "home decor", "meubels", "furniture",
-    ],
+    key: "furniture",
+    label: "Furniture store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "furniture" }]],
+    keywords: ["meubels", "furniture", "bank", "sofa", "tafel", "table", "stoel", "chair", "kast", "wardrobe"],
+  },
+  {
+    key: "home_decor",
+    label: "Home decor store",
+    requireName: true,
+    tags: [[{ key: "shop", value: "interior_decoration" }]],
+    keywords: ["woonaccessoires", "home decor", "interieur", "decoratie", "decoration", "wooninrichting"],
   },
   {
     key: "bikes",
     label: "Bike shop",
-    tags: [{ key: "shop", value: "bicycle" }],
+    requireName: true,
+    tags: [[{ key: "shop", value: "bicycle" }]],
     keywords: [
       "fiets", "bike", "bicycle", "fietsband", "bike tire", "fietsslot",
-      "bike lock", "fietsverlichting", "bike lights",
+      "bike lock", "fietsverlichting", "bike lights", "fietsenmaker",
+      "bike repair", "fiets repareren", "bicycle repair",
     ],
   },
   {
     key: "gifts",
     label: "Gift shop",
-    tags: [
-      { key: "shop", value: "gift" },
-      { key: "shop", value: "variety_store" },
-    ],
+    requireName: true,
+    tags: [[{ key: "shop", value: "gift" }], [{ key: "shop", value: "variety_store" }]],
     keywords: ["cadeau", "gift", "present", "souvenir", "geschenk"],
+  },
+  {
+    key: "jewelry",
+    label: "Jeweller",
+    requireName: true,
+    tags: [[{ key: "shop", value: "jewelry" }], [{ key: "shop", value: "watches" }]],
+    keywords: ["sieraden", "jewelry", "jewellery", "ring", "ketting", "necklace", "horloge", "horloges", "watch", "watches"],
+  },
+  {
+    key: "opticians",
+    label: "Optician",
+    requireName: true,
+    tags: [[{ key: "shop", value: "optician" }]],
+    keywords: ["opticien", "optician", "bril", "glasses", "contactlenzen", "contact lenses", "zonnebril", "sunglasses"],
+  },
+  {
+    key: "hairdresser",
+    label: "Hairdresser",
+    requireName: true,
+    tags: [[{ key: "shop", value: "hairdresser" }]],
+    keywords: ["kapper", "hairdresser", "kapsalon", "haar", "hair", "knippen", "haircut"],
+  },
+  {
+    key: "dry_cleaning",
+    label: "Dry cleaner",
+    requireName: true,
+    tags: [[{ key: "shop", value: "dry_cleaning" }]],
+    keywords: ["stomerij", "dry cleaner", "dry cleaning", "chemisch reinigen"],
   },
 ];
 
-// If nothing above matches, we fall back to these tags (requirement 8).
+// If nothing above matches — or a specific category has nothing nearby —
+// we fall back to these broad tags instead.
 const FALLBACK_CATEGORY = {
   key: "fallback",
   label: "Supermarket / department store",
-  tags: [
-    { key: "shop", value: "supermarket" },
-    { key: "shop", value: "department_store" },
-  ],
+  requireName: true,
+  tags: [[{ key: "shop", value: "supermarket" }], [{ key: "shop", value: "department_store" }]],
 };
 
 
@@ -289,29 +380,42 @@ function normalizeText(str) {
 }
 
 // Looks through CATEGORIES for a keyword matching what the user typed.
-// Returns the matching category object, or null if nothing matched.
+// Returns one of:
+//   { type: "none" }                      — nothing matched at all
+//   { type: "single", category }          — one clear match
+//   { type: "ambiguous", categories: [] }  — the exact word means more
+//                                            than one thing (e.g. "planten"
+//                                            could be a florist's
+//                                            houseplants or a garden
+//                                            centre's outdoor plants) —
+//                                            the caller should ask the
+//                                            user which one they meant.
 function findCategory(query) {
   const q = normalizeText(query);
-  if (!q) return null;
+  if (!q) return { type: "none" };
 
-  // Pass 1: look for an exact match first (most reliable).
-  for (const category of CATEGORIES) {
-    for (const keyword of category.keywords) {
-      if (normalizeText(keyword) === q) return category;
-    }
-  }
+  // Pass 1: exact keyword matches. If the exact word the user typed is
+  // listed under more than one category, that's genuine ambiguity —
+  // we'd rather ask than silently guess.
+  const exactMatches = CATEGORIES.filter((category) =>
+    category.keywords.some((keyword) => normalizeText(keyword) === q)
+  );
 
-  // Pass 2: fall back to "contains" matching, so typing "screwdrivers"
-  // still matches "screwdriver", and "birthday" alone can still hit
-  // "birthday card".
+  if (exactMatches.length === 1) return { type: "single", category: exactMatches[0] };
+  if (exactMatches.length > 1) return { type: "ambiguous", categories: exactMatches };
+
+  // Pass 2: "contains" matching is already a best-effort fallback (so
+  // typing "screwdrivers" still matches "screwdriver", and "birthday"
+  // alone can still hit "birthday card") — loose overlaps here aren't
+  // treated as ambiguous, we just take the first reasonable hit.
   for (const category of CATEGORIES) {
     for (const keyword of category.keywords) {
       const k = normalizeText(keyword);
-      if (q.includes(k) || k.includes(q)) return category;
+      if (q.includes(k) || k.includes(q)) return { type: "single", category };
     }
   }
 
-  return null;
+  return { type: "none" };
 }
 
 // The "haversine formula" — standard maths for distance between two
@@ -351,20 +455,24 @@ function formatAddress(tags) {
 
 
 /* ------------------------------------------------------------------
-   4. A SIMPLIFIED "IS IT OPEN RIGHT NOW?" CHECKER
+   4. OPENING HOURS: "IS IT OPEN RIGHT NOW?" AND A READABLE SCHEDULE
    ------------------------------------------------------------------
    OpenStreetMap's opening_hours format (see wiki.openstreetmap.org/
    wiki/Key:opening_hours) can get very complex (holidays, seasons,
    "PH off", etc). Fully supporting all of that is a project on its
-   own, so this checker only understands the common, everyday patterns,
-   e.g. "Mo-Fr 09:00-18:00; Sa 09:00-17:00" or "24/7".
+   own, so this only understands the common, everyday patterns, e.g.
+   "Mo-Fr 09:00-18:00; Sa 09:00-17:00" or "24/7".
 
    If a shop's opening_hours text doesn't match a pattern we understand,
-   we simply don't show an open/closed badge for it — we still show the
-   raw text so the user can read it themselves.
+   we say so honestly instead of showing OpenStreetMap's raw syntax or
+   guessing — see formatOpeningHours() below.
    ------------------------------------------------------------------ */
 
 const DAY_ABBREVIATIONS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+// Friendly English names for each day abbreviation, used when turning
+// raw opening_hours text into something readable.
+const DAY_LABELS = { Mo: "Mon", Tu: "Tue", We: "Wed", Th: "Thu", Fr: "Fri", Sa: "Sat", Su: "Sun" };
 
 // Turns something like "Mo-We" or "Sa" into a list of day numbers
 // (0 = Monday ... 6 = Sunday). Returns null if we don't recognise it.
@@ -420,6 +528,25 @@ function parseTimeRanges(timesPart) {
 // Regex that recognises a "days" token made only of day abbreviations.
 const DAYS_TOKEN_PATTERN = /^(Mo|Tu|We|Th|Fr|Sa|Su)([,-](Mo|Tu|We|Th|Fr|Sa|Su))*$/;
 
+// Splits one opening_hours "rule" (the bit between each ;) into its
+// days part and times part, e.g. "Mo-Fr 09:00-18:00" becomes
+// { daysPart: "Mo-Fr", timesPart: "09:00-18:00" }. If no days are
+// written at all, the rule applies every day — that's what leaving
+// days out means in the opening_hours spec — so we fill in "Mo-Su".
+// Returns null if we can't even find where the days part ends.
+// (Shared by isOpenNow and formatOpeningHours so both agree on how a
+// rule is read.)
+function splitRule(rule) {
+  const firstSpace = rule.indexOf(" ");
+  if (firstSpace === -1) return null;
+
+  const possibleDaysToken = rule.slice(0, firstSpace);
+  if (DAYS_TOKEN_PATTERN.test(possibleDaysToken)) {
+    return { daysPart: possibleDaysToken, timesPart: rule.slice(firstSpace + 1).trim() };
+  }
+  return { daysPart: "Mo-Su", timesPart: rule };
+}
+
 // Returns true / false if we could work it out, or null if the format
 // was too complex for this simplified checker.
 function isOpenNow(openingHoursText, now = new Date()) {
@@ -438,24 +565,9 @@ function isOpenNow(openingHoursText, now = new Date()) {
   const rules = text.split(";").map((r) => r.trim()).filter(Boolean);
 
   for (const rule of rules) {
-    const firstSpace = rule.indexOf(" ");
-    let daysPart;
-    let timesPart;
-
-    if (firstSpace === -1) {
-      // No space at all — can't separate days from times, skip this rule.
-      continue;
-    }
-
-    const possibleDaysToken = rule.slice(0, firstSpace);
-    if (DAYS_TOKEN_PATTERN.test(possibleDaysToken)) {
-      daysPart = possibleDaysToken;
-      timesPart = rule.slice(firstSpace + 1).trim();
-    } else {
-      // No day given means "every day" in the opening_hours spec.
-      daysPart = "Mo-Su";
-      timesPart = rule;
-    }
+    const split = splitRule(rule);
+    if (!split) continue; // couldn't even separate days from times, skip
+    const { daysPart, timesPart } = split;
 
     const days = parseDaysPart(daysPart);
     if (!days || !days.includes(todayIndex)) continue; // rule doesn't apply today
@@ -478,6 +590,60 @@ function isOpenNow(openingHoursText, now = new Date()) {
   }
 
   return result;
+}
+
+// Turns a day-range token like "Mo-Fr" or "Mo,We,Fr" into something
+// readable, e.g. "Mon-Fri" or "Mon, Wed, Fri". "Mo-Su" (meaning "every
+// day", used when the original text had no day at all) becomes "Daily".
+function formatDaysPart(daysPart) {
+  if (daysPart === "Mo-Su") return "Daily";
+  return daysPart
+    .split(",")
+    .map((token) => {
+      if (token.includes("-")) {
+        const [start, end] = token.split("-");
+        return `${DAY_LABELS[start]}-${DAY_LABELS[end]}`;
+      }
+      return DAY_LABELS[token];
+    })
+    .join(", ");
+}
+
+// Turns raw opening_hours text into a clean, human-readable schedule
+// instead of showing OpenStreetMap's compact syntax directly, e.g.
+// "Mo-Fr 09:00-18:00; Sa 09:00-17:00" becomes "Mon-Fri 09:00-18:00 ·
+// Sat 09:00-17:00". Returns null if the format is too unusual for us
+// to confidently reformat — we'd rather say nothing than show a
+// summary that might be wrong.
+function formatOpeningHours(openingHoursText) {
+  if (!openingHoursText) return null;
+  const text = openingHoursText.trim();
+  if (text === "24/7") return "Open 24 hours, every day";
+
+  const rules = text.split(";").map((r) => r.trim()).filter(Boolean);
+  const parts = [];
+
+  for (const rule of rules) {
+    const split = splitRule(rule);
+    if (!split) return null;
+    const { daysPart, timesPart } = split;
+
+    const days = parseDaysPart(daysPart);
+    if (!days) return null;
+
+    if (timesPart === "off" || timesPart === "closed") {
+      parts.push(`${formatDaysPart(daysPart)}: closed`);
+      continue;
+    }
+
+    const ranges = parseTimeRanges(timesPart);
+    if (!ranges) return null;
+
+    const timesText = timesPart.split(",").map((r) => r.trim()).join(", ");
+    parts.push(`${formatDaysPart(daysPart)} ${timesText}`);
+  }
+
+  return parts.join(" · ");
 }
 
 
@@ -622,17 +788,20 @@ changeLocationLink.addEventListener("click", () => {
    ------------------------------------------------------------------ */
 
 // Builds the little query language ("Overpass QL") that asks:
-// "give me every node/way tagged shop=X (or Y, or Z...) within
-// SEARCH_RADIUS_METERS of this point".
+// "give me every node/way that matches ANY of these tag groups, within
+// SEARCH_RADIUS_METERS of this point". tagGroups looks like:
+//   [ [{key,value}], [{key,value},{key,value}], ... ]
+// — each inner array's conditions must ALL be true together (AND), and
+// a place matches the whole category if it satisfies ANY one group (OR).
 // When requireName is true, we also demand a "name" tag exists, which
 // filters out unnamed/placeholder map entries at the source instead of
 // showing them to the user as "Unnamed grocery store".
-function buildOverpassQuery(tagList, lat, lon, { requireName = false } = {}) {
+function buildOverpassQuery(tagGroups, lat, lon, { requireName = false } = {}) {
   const nameFilter = requireName ? `["name"]` : "";
 
-  const clauses = tagList
-    .map(({ key, value }) => {
-      const filter = `["${key}"="${value}"]${nameFilter}`;
+  const clauses = tagGroups
+    .map((conditions) => {
+      const filter = conditions.map(({ key, value }) => `["${key}"="${value}"]`).join("") + nameFilter;
       return (
         `node${filter}(around:${SEARCH_RADIUS_METERS},${lat},${lon});` +
         `way${filter}(around:${SEARCH_RADIUS_METERS},${lat},${lon});`
@@ -686,6 +855,8 @@ function elementToStore(element, categoryLabel) {
   const lon = element.lon ?? element.center?.lon;
   if (lat == null || lon == null) return null;
 
+  const rawOpeningHours = tags.opening_hours || null;
+
   return {
     name: tags.name || `Unnamed ${categoryLabel.toLowerCase()}`,
     typeLabel: categoryLabel,
@@ -693,7 +864,12 @@ function elementToStore(element, categoryLabel) {
     lon,
     distance: distanceInMeters(userLocation.lat, userLocation.lon, lat, lon),
     address: formatAddress(tags),
-    openingHours: tags.opening_hours || null,
+    // openNow is true/false/null (null = "we can't tell"). hoursDisplay
+    // is a clean readable schedule, or null if it's too complex to
+    // reformat safely — renderStores() decides what to show for each.
+    openNow: isOpenNow(rawOpeningHours),
+    hoursDisplay: formatOpeningHours(rawOpeningHours),
+    hasHoursData: Boolean(rawOpeningHours),
   };
 }
 
@@ -730,12 +906,22 @@ const errorTextEl = document.getElementById("errorText");
 const retryBtn = document.getElementById("retryBtn");
 const noteMessageEl = document.getElementById("noteMessage");
 const resultsListEl = document.getElementById("resultsList");
+const openNowFilterEl = document.getElementById("openNowFilter");
+const openNowEmptyMessageEl = document.getElementById("openNowEmptyMessage");
+
+// Holds the full, unfiltered result list from the most recent search,
+// so toggling the "open now" filter can re-show a shorter or longer
+// list instantly without asking Overpass again.
+let lastStores = [];
 
 function showLoading() {
   loadingMessageEl.classList.remove("hidden");
   errorBoxEl.classList.add("hidden");
   noteMessageEl.classList.add("hidden");
+  openNowEmptyMessageEl.classList.add("hidden");
+  hideDisambiguation();
   resultsListEl.innerHTML = "";
+  lastStores = [];
 }
 
 function hideLoading() {
@@ -791,26 +977,36 @@ function renderStores(stores) {
 
     li.append(nameRow, type, address);
 
-    // Only show an hours line if OpenStreetMap actually has that data.
-    if (store.openingHours) {
-      const hours = document.createElement("p");
-      hours.className = "store-hours";
+    // Always show an hours line — never leave it blank or guess. There
+    // are three honest possibilities: a clean readable schedule, a
+    // known open/closed status without a summarised schedule (rare —
+    // only when the format is too unusual to safely reformat), or no
+    // data at all ("Hours unknown").
+    const hours = document.createElement("p");
+    hours.className = "store-hours";
 
-      const openNow = isOpenNow(store.openingHours);
-      if (openNow === true) {
-        const badge = document.createElement("span");
-        badge.className = "badge badge-open";
-        badge.textContent = "Open now";
-        hours.append(badge);
-      } else if (openNow === false) {
-        const badge = document.createElement("span");
-        badge.className = "badge badge-closed";
-        badge.textContent = "Closed now";
-        hours.append(badge);
-      }
-      hours.append(document.createTextNode(store.openingHours));
-      li.append(hours);
+    if (store.openNow === true) {
+      const badge = document.createElement("span");
+      badge.className = "badge badge-open";
+      badge.textContent = "Open now";
+      hours.append(badge);
+    } else if (store.openNow === false) {
+      const badge = document.createElement("span");
+      badge.className = "badge badge-closed";
+      badge.textContent = "Closed now";
+      hours.append(badge);
     }
+
+    let hoursText;
+    if (!store.hasHoursData) {
+      hoursText = "Hours unknown";
+    } else if (store.hoursDisplay) {
+      hoursText = store.hoursDisplay;
+    } else {
+      hoursText = "Hours available, but too complex to summarize here";
+    }
+    hours.append(document.createTextNode(hoursText));
+    li.append(hours);
 
     const directionsBtn = document.createElement("a");
     directionsBtn.className = "directions-btn";
@@ -834,6 +1030,48 @@ function renderStores(stores) {
   }
 }
 
+// Re-renders whatever the last search found, applying the "show only
+// open now" checkbox if it's ticked. Called both right after a search
+// finishes and whenever the checkbox is toggled — no new Overpass
+// request needed either way, since we already have the full list.
+function applyOpenNowFilterAndRender() {
+  const filtered = openNowFilterEl.checked
+    ? lastStores.filter((store) => store.openNow === true)
+    : lastStores;
+
+  const nothingLeftAfterFilter =
+    openNowFilterEl.checked && lastStores.length > 0 && filtered.length === 0;
+  openNowEmptyMessageEl.classList.toggle("hidden", !nothingLeftAfterFilter);
+
+  renderStores(filtered);
+}
+
+openNowFilterEl.addEventListener("change", applyOpenNowFilterAndRender);
+
+// -------- "Did you mean...?" prompt for ambiguous search words --------
+
+const disambiguationBox = document.getElementById("disambiguationBox");
+const disambiguationText = document.getElementById("disambiguationText");
+const disambiguationButtons = document.getElementById("disambiguationButtons");
+
+function showDisambiguation(query, categories) {
+  disambiguationText.textContent = `"${query}" could mean a few different things — which one did you mean?`;
+  disambiguationButtons.innerHTML = "";
+  for (const category of categories) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = category.label;
+    button.addEventListener("click", () => runSearch(query, category));
+    disambiguationButtons.append(button);
+  }
+  disambiguationBox.classList.remove("hidden");
+}
+
+function hideDisambiguation() {
+  disambiguationBox.classList.add("hidden");
+  disambiguationButtons.innerHTML = "";
+}
+
 
 /* ------------------------------------------------------------------
    8. WIRING IT ALL TOGETHER
@@ -842,15 +1080,31 @@ function renderStores(stores) {
 const itemInput = document.getElementById("itemInput");
 const searchBtn = document.getElementById("searchBtn");
 
-// Remembers the last thing searched, so the "Try again" button can
-// repeat the exact same search without the user retyping anything.
+// Remembers the last search, so the "Try again" button can repeat it
+// exactly — including which category was picked, if the word was
+// ambiguous and the user already chose one — without starting over.
 let lastQuery = "";
+let lastForcedCategory = null;
 
-async function runSearch(query) {
+// `forcedCategory` is set when the user has already answered a "did
+// you mean...?" prompt — it skips dictionary lookup and searches that
+// exact category directly.
+async function runSearch(query, forcedCategory = null) {
   lastQuery = query;
+  lastForcedCategory = forcedCategory;
   showLoading();
 
-  const category = findCategory(query);
+  let category = forcedCategory;
+  if (!category) {
+    const match = findCategory(query);
+    if (match.type === "ambiguous") {
+      hideLoading();
+      showDisambiguation(query, match.categories);
+      return;
+    }
+    category = match.type === "single" ? match.category : null;
+  }
+
   const matchedDictionary = Boolean(category);
   const activeCategory = category || FALLBACK_CATEGORY;
 
@@ -890,7 +1144,8 @@ async function runSearch(query) {
       }
     }
 
-    renderStores(stores);
+    lastStores = stores;
+    applyOpenNowFilterAndRender();
   } catch (err) {
     hideLoading();
     // Hide any "showing fallback stores instead" note — it would be
@@ -933,7 +1188,7 @@ itemInput.addEventListener("keydown", (event) => {
 });
 
 retryBtn.addEventListener("click", () => {
-  if (lastQuery) runSearch(lastQuery);
+  if (lastQuery) runSearch(lastQuery, lastForcedCategory);
 });
 
 // Kick everything off: as soon as the page's JavaScript runs, try to

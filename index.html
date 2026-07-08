@@ -52,6 +52,20 @@
         />
         <button id="searchBtn">Find stores</button>
       </div>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="openNowFilter" />
+        Show only stores open now
+      </label>
+    </section>
+
+    <!-- Shown when a search word matches more than one kind of shop
+         (e.g. "planten" could mean a florist's houseplants or a garden
+         centre's outdoor plants) — asks the user to pick one instead of
+         guessing. -->
+    <section id="disambiguationBox" class="card hidden">
+      <p id="disambiguationText"></p>
+      <div id="disambiguationButtons" class="disambiguation-buttons"></div>
     </section>
 
     <!-- STEP 3: RESULTS / LOADING / ERRORS -->
@@ -62,6 +76,7 @@
         <button id="retryBtn" class="hidden">Try again</button>
       </div>
       <p id="noteMessage" class="note-text hidden"></p>
+      <p id="openNowEmptyMessage" class="note-text hidden">No stores from this search are currently open.</p>
     </section>
 
     <section id="resultsSection">
@@ -73,7 +88,7 @@
   <!-- A small version/last-updated label, pinned to the corner so it's
        always visible without getting in the way of anything. Bump the
        version number and date/time here each time this app is updated. -->
-  <footer id="versionFooter" aria-hidden="true">v2 &middot; updated 9 Jul 2026, 00:54</footer>
+  <footer id="versionFooter" aria-hidden="true">v3 &middot; updated 9 Jul 2026, 01:19</footer>
 
   <!-- Our own code goes last, so the HTML above already exists when it runs. -->
   <script src="app.js"></script>
