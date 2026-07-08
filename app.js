@@ -54,27 +54,48 @@ const CATEGORIES = [
   {
     key: "groceries",
     label: "Grocery store",
-    // "shop=grocery" was removed on purpose: it's a vague, inconsistently
-    // used OpenStreetMap tag (unlike "supermarket"/"convenience"/
-    // "greengrocer", which have clear, specific meanings), and it was
-    // the main source of odd, clearly-wrong results for searches like
-    // "melk". We also never query broad catch-all tags like "shop=yes"
-    // (mappers use that when they're not sure what kind of shop it is) —
-    // vague tags in, vague results out.
+    // This used to be one big "groceries" category covering supermarket,
+    // convenience, greengrocer, bakery AND butcher tags together — which
+    // meant searching "melk" (milk) could show a bakery or butcher, since
+    // they all shared the exact same tag list. Now this category only
+    // covers places that plausibly sell general groceries/dairy/drinks;
+    // bread, meat and produce each have their OWN category below, so a
+    // specific word only pulls in the specific kind of shop it means.
+    // "shop=grocery" is also deliberately left out: it's a vague,
+    // inconsistently used OpenStreetMap tag, and we never query broad
+    // catch-all tags like "shop=yes" either — vague tags in, vague
+    // results out.
     requireName: true, // skip entries with no name — usually unfinished/placeholder map data
     tags: [
       { key: "shop", value: "supermarket" },
       { key: "shop", value: "convenience" },
-      { key: "shop", value: "greengrocer" },
-      { key: "shop", value: "bakery" },
-      { key: "shop", value: "butcher" },
     ],
     keywords: [
-      "melk", "milk", "brood", "bread", "kaas", "cheese", "eieren", "eggs",
+      "melk", "milk", "kaas", "cheese", "eieren", "eggs",
       "boodschappen", "groceries", "grocery", "supermarkt", "supermarket",
-      "eten", "food", "groente", "vegetables", "fruit", "bakker", "bakery",
-      "slager", "butcher", "yoghurt", "yogurt", "drinken", "drinks",
+      "eten", "food", "yoghurt", "yogurt", "drinken", "drinks",
     ],
+  },
+  {
+    key: "bakery",
+    label: "Bakery",
+    requireName: true,
+    tags: [{ key: "shop", value: "bakery" }],
+    keywords: ["brood", "bread", "bakker", "bakery"],
+  },
+  {
+    key: "butcher",
+    label: "Butcher",
+    requireName: true,
+    tags: [{ key: "shop", value: "butcher" }],
+    keywords: ["slager", "butcher", "vlees", "meat"],
+  },
+  {
+    key: "greengrocer",
+    label: "Greengrocer",
+    requireName: true,
+    tags: [{ key: "shop", value: "greengrocer" }],
+    keywords: ["groente", "vegetables", "fruit", "groenteboer"],
   },
   {
     key: "tools",
